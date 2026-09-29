@@ -41,6 +41,10 @@ export default async function handler(req, res) {
     const filename = invoiceFilename(data);
     const pdf = await createInvoicePdf(data);
 
+    await airtablePatch(config.baseId, config.tables.purchases, recordId, {
+      [attachmentField]: []
+    });
+
     await airtableUploadAttachment(config.baseId, recordId, attachmentField, pdf, filename);
 
     const update = {};
