@@ -1,6 +1,5 @@
 import { getBaseConfig } from "../lib/config.js";
 import { airtablePatch } from "../lib/airtable.js";
-import { createInvoicePdf } from "../lib/pdf.js";
 import { invoiceFilename, loadInvoiceData } from "../lib/invoice-data.js";
 
 function assertSecret(req) {
@@ -40,7 +39,6 @@ export default async function handler(req, res) {
 
     const config = getBaseConfig(base);
     const data = await loadInvoiceData(base, recordId);
-    await createInvoicePdf(data);
     const filename = invoiceFilename(data);
 
     const pdfUrl = `${publicBaseUrl(req)}/api/invoice?base=${encodeURIComponent(base)}&recordId=${encodeURIComponent(recordId)}&token=${encodeURIComponent(process.env.INVOICE_SECRET)}`;
