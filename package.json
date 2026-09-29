@@ -1,0 +1,16 @@
+{
+  "name": "jakobson-airtable-invoices",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "check": "node --check api/invoice.js && node --check api/create-invoice.js"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  }
+}
