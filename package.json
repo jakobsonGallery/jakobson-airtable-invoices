@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "check": "node --check api/invoice.js && node --check api/create-invoice.js"
+    "check": "node --check api/invoice.js && node --check api/create-invoice.js && node --check api/monthly-backup.js"
   },
   "dependencies": {
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "vercel": "^37.0.0"
