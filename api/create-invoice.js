@@ -4,7 +4,7 @@ import { createInvoicePdf } from "../lib/pdf.js";
 import { invoiceFilename, loadInvoiceData } from "../lib/invoice-data.js";
 
 async function ensureSequentialInvoiceNumber(baseKey, config, recordId) {
-  if (baseKey !== "saint-tropez" || !config.fields.invoiceNumber) return;
+  if (!config.fields.invoiceNumber) return;
 
   const fieldId = config.fields.invoiceNumber;
   const purchase = await airtableGet(config.baseId, config.tables.purchases, recordId);
