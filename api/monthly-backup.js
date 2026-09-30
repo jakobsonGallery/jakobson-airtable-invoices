@@ -64,20 +64,48 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchPage(url, attempt = 0) {
+// Airtable allows a limited request rate per base. We start requests ~230 ms apart
+// for each base, but let their network latency overlap so a full export does not
+// need to wait for every table sequentially.
+const nextRequestAt = new Map();
+const rateLocks = new Map();
+
+async function waitForRateSlot(baseId) {
+  const previous = rateLocks.get(baseId) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => {
+    release = resolve;
+  });
+  rateLocks.set(baseId, current);
+
+  await previous;
+  try {
+    const now = Date.now();
+    const target = Math.max(now, nextRequestAt.get(baseId) || now);
+    if (target > now) await sleep(target - now);
+    nextRequestAt.set(baseId, Date.now() + 230);
+  } finally {
+    release();
+  }
+}
+
+async function fetchPage(baseId, url, attempt = 0) {
+  await waitForRateSlot(baseId);
+
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${token()}` }
   });
 
-  if (response.status === 429 && attempt < 5) {
+  if (response.status === 429 && attempt < 6) {
     const retryAfter = Number(response.headers.get("retry-after") || "1");
     await sleep(Math.max(1000, retryAfter * 1000));
-    return fetchPage(url, attempt + 1);
+    return fetchPage(baseId, url, attempt + 1);
   }
 
   if (!response.ok) {
     throw new Error(`Airtable export failed: ${response.status} ${await response.text()}`);
   }
+
   return response.json();
 }
 
@@ -91,10 +119,9 @@ async function listAllRecords(baseId, tableId) {
     if (offset) params.set("offset", offset);
 
     const url = `${AIRTABLE_API}/${baseId}/${tableId}?${params.toString()}`;
-    const page = await fetchPage(url);
+    const page = await fetchPage(baseId, url);
     records.push(...(page.records || []));
     offset = page.offset || "";
-    if (offset) await sleep(240);
   } while (offset);
 
   return records;
@@ -127,6 +154,18 @@ async function createBackupRecord(filename, date) {
   return recordId;
 }
 
+async function deleteBackupRecord(recordId) {
+  if (!recordId) return;
+  try {
+    await fetch(`${AIRTABLE_API}/${BACKUP.baseId}/${BACKUP.tableId}/${recordId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token()}` }
+    });
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
 async function uploadBackupAttachment(recordId, bytes, filename) {
   const url = `${AIRTABLE_CONTENT_API}/${BACKUP.baseId}/${recordId}/${BACKUP.fileFieldId}/uploadAttachment`;
   const response = await fetch(url, {
@@ -156,9 +195,8 @@ function normalize(value) {
   if (Array.isArray(value)) {
     if (value.length === 0) return "";
     if (value.every((x) => x && typeof x === "object" && ("filename" in x || "url" in x))) {
-      return value
-        .map((x) => [x.filename || "", x.url || ""].filter(Boolean).join(" — "))
-        .join("\n");
+      // Attachment URLs expire; preserve the filename rather than treating the URL as a backup.
+      return value.map((x) => x.filename || "").filter(Boolean).join(", ");
     }
     if (value.every((x) => x && typeof x === "object" && "name" in x)) {
       return value.map((x) => x.name || "").filter(Boolean).join(", ");
@@ -170,9 +208,7 @@ function normalize(value) {
   if (typeof value === "object") {
     if ("name" in value && value.name) return value.name;
     if ("email" in value && value.email) return value.email;
-    if ("filename" in value || "url" in value) {
-      return [value.filename || "", value.url || ""].filter(Boolean).join(" — ");
-    }
+    if ("filename" in value) return value.filename || "";
     return JSON.stringify(value);
   }
 
@@ -220,37 +256,39 @@ function fitColumns(rows) {
   });
 }
 
-async function collectData() {
-  const results = [];
-  for (const base of BASES) {
-    for (const [tableId, tableName] of base.tables) {
-      try {
-        const records = await listAllRecords(base.baseId, tableId);
-        results.push({
-          base: base.key,
-          baseId: base.baseId,
-          tableId,
-          tableName,
-          records,
-          error: null
-        });
-      } catch (error) {
-        results.push({
-          base: base.key,
-          baseId: base.baseId,
-          tableId,
-          tableName,
-          records: [],
-          error: error.message || String(error)
-        });
-      }
-      await sleep(240);
-    }
+async function exportOneTable(base, tableId, tableName) {
+  try {
+    const records = await listAllRecords(base.baseId, tableId);
+    return {
+      base: base.key,
+      baseId: base.baseId,
+      tableId,
+      tableName,
+      records,
+      error: null
+    };
+  } catch (error) {
+    return {
+      base: base.key,
+      baseId: base.baseId,
+      tableId,
+      tableName,
+      records: [],
+      error: error.message || String(error)
+    };
   }
-  return results;
+}
+
+async function collectData() {
+  const jobs = BASES.flatMap((base) =>
+    base.tables.map(([tableId, tableName]) => exportOneTable(base, tableId, tableName))
+  );
+  return Promise.all(jobs);
 }
 
 export default async function handler(req, res) {
+  let backupRecordId = null;
+
   try {
     if (req.method !== "GET") {
       res.status(405).send("Use GET.");
@@ -259,6 +297,8 @@ export default async function handler(req, res) {
 
     assertSecret(req);
     const url = new URL(req.url, "https://local");
+
+    const startedAt = Date.now();
     const results = await collectData();
     const generatedAt = new Date();
     const date = generatedAt.toISOString().slice(0, 10);
@@ -277,9 +317,15 @@ export default async function handler(req, res) {
         ok: !results.some((x) => x.error),
         filename,
         generatedAt: generatedAt.toISOString(),
+        durationMs: Date.now() - startedAt,
         tables: summary
       });
       return;
+    }
+
+    const failed = results.filter((x) => x.error);
+    if (failed.length) {
+      throw new Error(`Export incomplet: ${failed.map((x) => `${x.base}/${x.tableName}: ${x.error}`).join(" | ")}`);
     }
 
     const workbook = XLSX.utils.book_new();
@@ -303,29 +349,30 @@ export default async function handler(req, res) {
       const rows = rowsFromRecords(item.records);
       const dataRows = rows.length
         ? rows
-        : [{ "Record ID": "", "Created Time": "", Information: item.error ? `ERREUR: ${item.error}` : "Aucune donnée" }];
+        : [{ "Record ID": "", "Created Time": "", Information: "Aucune donnée" }];
       const sheet = XLSX.utils.json_to_sheet(dataRows);
       sheet["!cols"] = fitColumns(dataRows);
       const prefix = item.base === "PARIS" ? "P" : "ST";
       XLSX.utils.book_append_sheet(workbook, sheet, safeSheetName(prefix, item.tableName, used));
     }
 
-    const bytes = XLSX.write(workbook, { type: "buffer", bookType: "xlsx", compression: true });
+    const bytes = XLSX.write(workbook, {
+      type: "buffer",
+      bookType: "xlsx",
+      compression: true
+    });
 
     if (url.searchParams.get("archive") === "1") {
-      const failed = results.filter((x) => x.error);
-      if (failed.length) {
-        throw new Error(`Export incomplet: ${failed.map((x) => `${x.base}/${x.tableName}: ${x.error}`).join(" | ")}`);
-      }
-
-      const recordId = await createBackupRecord(filename, date);
-      await uploadBackupAttachment(recordId, bytes, filename);
+      backupRecordId = await createBackupRecord(filename, date);
+      await uploadBackupAttachment(backupRecordId, bytes, filename);
 
       res.status(200).json({
         ok: true,
-        recordId,
+        recordId: backupRecordId,
         filename,
         generatedAt: generatedAt.toISOString(),
+        durationMs: Date.now() - startedAt,
+        byteLength: bytes.length,
         tables: summary
       });
       return;
@@ -336,6 +383,7 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store, private");
     res.status(200).send(bytes);
   } catch (error) {
+    if (backupRecordId) await deleteBackupRecord(backupRecordId);
     res.status(error.statusCode || 500).send(error.message || "Backup export failed.");
   }
 }
