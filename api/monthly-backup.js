@@ -1,6 +1,15 @@
 import * as XLSX from "xlsx";
 
 const AIRTABLE_API = "https://api.airtable.com/v0";
+const AIRTABLE_CONTENT_API = "https://content.airtable.com/v0";
+
+const BACKUP = {
+  baseId: "appZQ3yquS8uPXZy6",
+  tableId: "tblVK4KJNVLuzslYb",
+  nameFieldId: "fldqxaCJMBZap72hj",
+  dateFieldId: "fld6N6oXuv77gEhtB",
+  fileFieldId: "fldPrbM5WAEvs8jWU"
+};
 
 const BASES = [
   {
@@ -89,6 +98,55 @@ async function listAllRecords(baseId, tableId) {
   } while (offset);
 
   return records;
+}
+
+async function createBackupRecord(filename, date) {
+  const response = await fetch(`${AIRTABLE_API}/${BACKUP.baseId}/${BACKUP.tableId}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      records: [{
+        fields: {
+          [BACKUP.nameFieldId]: filename,
+          [BACKUP.dateFieldId]: date
+        }
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Airtable backup record failed: ${response.status} ${await response.text()}`);
+  }
+
+  const payload = await response.json();
+  const recordId = payload.records?.[0]?.id;
+  if (!recordId) throw new Error("Airtable backup record created without record ID.");
+  return recordId;
+}
+
+async function uploadBackupAttachment(recordId, bytes, filename) {
+  const url = `${AIRTABLE_CONTENT_API}/${BACKUP.baseId}/${recordId}/${BACKUP.fileFieldId}/uploadAttachment`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      filename,
+      file: Buffer.from(bytes).toString("base64")
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Airtable backup upload failed: ${response.status} ${await response.text()}`);
+  }
+
+  return response.json();
 }
 
 function normalize(value) {
@@ -253,6 +311,25 @@ export default async function handler(req, res) {
     }
 
     const bytes = XLSX.write(workbook, { type: "buffer", bookType: "xlsx", compression: true });
+
+    if (url.searchParams.get("archive") === "1") {
+      const failed = results.filter((x) => x.error);
+      if (failed.length) {
+        throw new Error(`Export incomplet: ${failed.map((x) => `${x.base}/${x.tableName}: ${x.error}`).join(" | ")}`);
+      }
+
+      const recordId = await createBackupRecord(filename, date);
+      await uploadBackupAttachment(recordId, bytes, filename);
+
+      res.status(200).json({
+        ok: true,
+        recordId,
+        filename,
+        generatedAt: generatedAt.toISOString(),
+        tables: summary
+      });
+      return;
+    }
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
