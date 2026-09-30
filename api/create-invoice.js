@@ -14,6 +14,9 @@ function assertSecret(req) {
 }
 
 export default async function handler(req, res) {
+  let activeConfig = null;
+  let activeRecordId = null;
+
   try {
     if (req.method !== "POST" && req.method !== "GET") {
       res.status(405).send("Use POST.");
@@ -32,6 +35,8 @@ export default async function handler(req, res) {
     }
 
     const config = getBaseConfig(base);
+    activeConfig = config;
+    activeRecordId = recordId;
     const attachmentField = config.fields.pdfAttachment || config.fields.fallbackAttachment;
     if (!attachmentField) {
       throw new Error("No Airtable attachment field configured.");
@@ -57,6 +62,23 @@ export default async function handler(req, res) {
 
     res.status(200).send(`Invoice generated and attached: ${filename}`);
   } catch (error) {
+    if (
+      error?.statusCode === 400 &&
+      activeConfig?.fields?.launch &&
+      activeRecordId
+    ) {
+      try {
+        await airtablePatch(
+          activeConfig.baseId,
+          activeConfig.tables.purchases,
+          activeRecordId,
+          { [activeConfig.fields.launch]: false }
+        );
+      } catch {
+        // Preserve the original validation error.
+      }
+    }
+
     res.status(error.statusCode || 500).send(error.message || "Invoice attachment failed.");
   }
 }
