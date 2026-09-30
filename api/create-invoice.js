@@ -1,5 +1,5 @@
 import { getBaseConfig } from "../lib/config.js";
-import { airtableGet, airtableListField, airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
+import { airtableGet, airtableListField, airtableListFields, airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
 import { createInvoicePdf } from "../lib/pdf.js";
 import { invoiceFilename, loadInvoiceData } from "../lib/invoice-data.js";
 
@@ -13,8 +13,19 @@ async function ensureSequentialInvoiceNumber(baseKey, config, recordId) {
   // Respect any manually entered or manually corrected invoice number.
   if (current !== null && current !== undefined && current !== "") return;
 
-  const records = await airtableListField(config.baseId, config.tables.purchases, fieldId);
+  const records =
+    baseKey === "paris" && config.fields.purchaseDate
+      ? await airtableListFields(config.baseId, config.tables.purchases, [
+          fieldId,
+          config.fields.purchaseDate
+        ])
+      : await airtableListField(config.baseId, config.tables.purchases, fieldId);
+
   const maxNumber = records.reduce((max, record) => {
+    if (baseKey === "paris" && config.fields.purchaseDate) {
+      const purchaseDate = record?.fields?.[config.fields.purchaseDate];
+      if (!purchaseDate || String(purchaseDate) < "2026-01-01") return max;
+    }
     const value = Number(record?.fields?.[fieldId]);
     return Number.isFinite(value) && value > max ? value : max;
   }, 0);
