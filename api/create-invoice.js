@@ -1,7 +1,28 @@
 import { getBaseConfig } from "../lib/config.js";
-import { airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
+import { airtableGet, airtableListField, airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
 import { createInvoicePdf } from "../lib/pdf.js";
 import { invoiceFilename, loadInvoiceData } from "../lib/invoice-data.js";
+
+async function ensureSequentialInvoiceNumber(baseKey, config, recordId) {
+  if (baseKey !== "saint-tropez" || !config.fields.invoiceNumber) return;
+
+  const fieldId = config.fields.invoiceNumber;
+  const purchase = await airtableGet(config.baseId, config.tables.purchases, recordId);
+  const current = purchase?.fields?.[fieldId];
+
+  // Respect any manually entered or manually corrected invoice number.
+  if (current !== null && current !== undefined && current !== "") return;
+
+  const records = await airtableListField(config.baseId, config.tables.purchases, fieldId);
+  const maxNumber = records.reduce((max, record) => {
+    const value = Number(record?.fields?.[fieldId]);
+    return Number.isFinite(value) && value > max ? value : max;
+  }, 0);
+
+  await airtablePatch(config.baseId, config.tables.purchases, recordId, {
+    [fieldId]: maxNumber + 1
+  });
+}
 
 function assertSecret(req) {
   const url = new URL(req.url, "https://local");
@@ -42,6 +63,7 @@ export default async function handler(req, res) {
       throw new Error("No Airtable attachment field configured.");
     }
 
+    await ensureSequentialInvoiceNumber(base, config, recordId);
     const data = await loadInvoiceData(base, recordId);
     const filename = invoiceFilename(data);
     const pdf = await createInvoicePdf(data);
