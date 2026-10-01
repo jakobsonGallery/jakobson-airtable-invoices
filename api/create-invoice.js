@@ -48,13 +48,13 @@ function assertSecret(req) {
 
 async function maybeCreateCertificate(base, config, recordId) {
   const f = config.fields;
-  if (!f.certificateLaunch || !f.certificateDone || !f.certificateAttachment) return false;
+  if (!f.certificateLaunch || !f.certificateAttachment) return false;
 
   const purchase = await airtableGet(config.baseId, config.tables.purchases, recordId);
   const fields = purchase?.fields || {};
 
   const requested = fields[f.certificateLaunch] === true;
-  const alreadyDone = fields[f.certificateDone] === true;
+  const alreadyDone = f.certificateDone ? fields[f.certificateDone] === true : false;
 
   if (!requested || alreadyDone) return false;
 
@@ -71,9 +71,9 @@ async function maybeCreateCertificate(base, config, recordId) {
   );
 
   const update = {
-    [f.certificateDone]: true,
     [f.certificateLaunch]: false
   };
+  if (f.certificateDone) update[f.certificateDone] = true;
   if (f.launch) update[f.launch] = false;
 
   await airtablePatch(config.baseId, config.tables.purchases, recordId, update);
