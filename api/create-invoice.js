@@ -2,6 +2,8 @@ import { getBaseConfig } from "../lib/config.js";
 import { airtableGet, airtableListField, airtableListFields, airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
 import { createInvoicePdf } from "../lib/pdf.js";
 import { invoiceFilename, loadInvoiceData } from "../lib/invoice-data.js";
+import { certificateFilename, loadCertificateData } from "../lib/certificate-data.js";
+import { createCertificatePdf } from "../lib/certificate-pdf.js";
 
 async function ensureSequentialInvoiceNumber(baseKey, config, recordId) {
   if (!config.fields.invoiceNumber) return;
@@ -10,7 +12,6 @@ async function ensureSequentialInvoiceNumber(baseKey, config, recordId) {
   const purchase = await airtableGet(config.baseId, config.tables.purchases, recordId);
   const current = purchase?.fields?.[fieldId];
 
-  // Respect any manually entered or manually corrected invoice number.
   if (current !== null && current !== undefined && current !== "") return;
 
   const records =
@@ -45,6 +46,41 @@ function assertSecret(req) {
   }
 }
 
+async function maybeCreateCertificate(base, config, recordId) {
+  const f = config.fields;
+  if (!f.certificateLaunch || !f.certificateDone || !f.certificateAttachment) return false;
+
+  const purchase = await airtableGet(config.baseId, config.tables.purchases, recordId);
+  const fields = purchase?.fields || {};
+
+  const requested = fields[f.certificateLaunch] === true;
+  const alreadyDone = fields[f.certificateDone] === true;
+
+  if (!requested || alreadyDone) return false;
+
+  const data = await loadCertificateData(base, recordId);
+  const filename = certificateFilename(data);
+  const pdf = await createCertificatePdf(data);
+
+  await airtableUploadAttachment(
+    config.baseId,
+    recordId,
+    f.certificateAttachment,
+    pdf,
+    filename
+  );
+
+  const update = {
+    [f.certificateDone]: true,
+    [f.certificateLaunch]: false
+  };
+  if (f.launch) update[f.launch] = false;
+
+  await airtablePatch(config.baseId, config.tables.purchases, recordId, update);
+
+  return filename;
+}
+
 export default async function handler(req, res) {
   let activeConfig = null;
   let activeRecordId = null;
@@ -69,6 +105,13 @@ export default async function handler(req, res) {
     const config = getBaseConfig(base);
     activeConfig = config;
     activeRecordId = recordId;
+
+    const certificate = await maybeCreateCertificate(base, config, recordId);
+    if (certificate) {
+      res.status(200).send(`Certificate generated and attached: ${certificate}`);
+      return;
+    }
+
     const attachmentField = config.fields.pdfAttachment || config.fields.fallbackAttachment;
     if (!attachmentField) {
       throw new Error("No Airtable attachment field configured.");
@@ -79,9 +122,13 @@ export default async function handler(req, res) {
     const filename = invoiceFilename(data);
     const pdf = await createInvoicePdf(data);
 
-    await airtablePatch(config.baseId, config.tables.purchases, recordId, {
-      [attachmentField]: []
-    });
+    // Only clear a dedicated invoice field. If invoices and certificates share
+    // the same Airtable attachment field, preserve existing certificates.
+    if (attachmentField !== config.fields.certificateAttachment) {
+      await airtablePatch(config.baseId, config.tables.purchases, recordId, {
+        [attachmentField]: []
+      });
+    }
 
     await airtableUploadAttachment(config.baseId, recordId, attachmentField, pdf, filename);
 
@@ -112,6 +159,6 @@ export default async function handler(req, res) {
       }
     }
 
-    res.status(error.statusCode || 500).send(error.message || "Invoice attachment failed.");
+    res.status(error.statusCode || 500).send(error.message || "PDF attachment failed.");
   }
 }
