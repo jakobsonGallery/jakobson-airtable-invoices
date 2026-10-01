@@ -1,14 +1,31 @@
 import { getBaseConfig } from "../lib/config.js";
-import { airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
+import { airtableGet, airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
 import { certificateFilename, loadCertificateData } from "../lib/certificate-data.js";
 import { createCertificatePdf } from "../lib/certificate-pdf.js";
 
-function assertSecret(req) {
+async function assertAuthorized(req, config, recordId) {
   const url = new URL(req.url, "https://local");
   const token = url.searchParams.get("token");
-  if (!process.env.INVOICE_SECRET || token !== process.env.INVOICE_SECRET) {
+
+  if (process.env.INVOICE_SECRET && token === process.env.INVOICE_SECRET) {
+    return;
+  }
+
+  // Airtable automation fallback: no duplicated secret is required.
+  // The endpoint only proceeds when the record itself has explicitly requested
+  // a certificate through the configured certificateLaunch checkbox.
+  if (url.searchParams.get("source") !== "airtable" || !config.fields.certificateLaunch) {
     const error = new Error("Unauthorized");
     error.statusCode = 401;
+    throw error;
+  }
+
+  const purchase = await airtableGet(config.baseId, config.tables.purchases, recordId);
+  const requested = purchase?.fields?.[config.fields.certificateLaunch] === true;
+
+  if (!requested) {
+    const error = new Error("Certificate generation was not requested for this record.");
+    error.statusCode = 403;
     throw error;
   }
 }
@@ -23,8 +40,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    assertSecret(req);
-
     const url = new URL(req.url, "https://local");
     const base = url.searchParams.get("base") || "paris";
     const recordId = url.searchParams.get("recordId");
@@ -38,6 +53,8 @@ export default async function handler(req, res) {
     activeConfig = config;
     activeRecordId = recordId;
 
+    await assertAuthorized(req, config, recordId);
+
     const attachmentField = config.fields.certificateAttachment;
     if (!attachmentField) {
       throw new Error("No Airtable certificate attachment field configured.");
@@ -47,7 +64,7 @@ export default async function handler(req, res) {
     const filename = certificateFilename(data);
     const pdf = await createCertificatePdf(data);
 
-    // UploadAttachment appends the new certificate and preserves existing invoice/certificate files.
+    // Append the certificate and preserve any invoice/certificate already attached.
     await airtableUploadAttachment(
       config.baseId,
       recordId,
