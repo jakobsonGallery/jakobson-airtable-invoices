@@ -60,15 +60,23 @@ async function maybeCreateCertificate(base, config, recordId) {
 
   const data = await loadCertificateData(base, recordId);
   const filename = certificateFilename(data);
-  const pdf = await createCertificatePdf(data);
-
-  await airtableUploadAttachment(
-    config.baseId,
-    recordId,
-    f.certificateAttachment,
-    pdf,
-    filename
+  const existingAttachments = Array.isArray(fields[f.certificateAttachment])
+    ? fields[f.certificateAttachment]
+    : [];
+  const alreadyAttached = existingAttachments.some(
+    (attachment) => attachment?.filename === filename
   );
+
+  if (!alreadyAttached) {
+    const pdf = await createCertificatePdf(data);
+    await airtableUploadAttachment(
+      config.baseId,
+      recordId,
+      f.certificateAttachment,
+      pdf,
+      filename
+    );
+  }
 
   const update = {
     [f.certificateLaunch]: false
@@ -78,7 +86,7 @@ async function maybeCreateCertificate(base, config, recordId) {
 
   await airtablePatch(config.baseId, config.tables.purchases, recordId, update);
 
-  return filename;
+  return { filename, alreadyAttached };
 }
 
 export default async function handler(req, res) {
@@ -108,7 +116,10 @@ export default async function handler(req, res) {
 
     const certificate = await maybeCreateCertificate(base, config, recordId);
     if (certificate) {
-      res.status(200).send(`Certificate generated and attached: ${certificate}`);
+      const message = certificate.alreadyAttached
+        ? `Certificate already attached: ${certificate.filename}`
+        : `Certificate generated and attached: ${certificate.filename}`;
+      res.status(200).send(message);
       return;
     }
 
