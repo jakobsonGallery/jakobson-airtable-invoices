@@ -63,11 +63,6 @@ export default async function handler(req, res) {
     const data = await loadCertificateData(base, recordId);
     const filename = certificateFilename(data);
 
-    const purchase = await airtableGet(config.baseId, config.tables.purchases, recordId);
-    const existingAttachments = Array.isArray(purchase?.fields?.[attachmentField])
-      ? purchase.fields[attachmentField]
-      : [];
-
 
     const update = {};
     if (config.fields.certificateDone) update[config.fields.certificateDone] = true;
@@ -75,9 +70,10 @@ export default async function handler(req, res) {
 
     const pdf = await createCertificatePdf(data);
 
-    // Append the certificate and preserve any invoice/certificate already attached.
-    await airtableUploadAttachment(
+    // Upload replacement, then remove only older copies of this certificate.
+    await airtableReplaceAttachment(
       config.baseId,
+      config.tables.purchases,
       recordId,
       attachmentField,
       pdf,
