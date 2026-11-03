@@ -1,5 +1,5 @@
 import { getBaseConfig } from "../lib/config.js";
-import { airtableGet, airtableListField, airtableListFields, airtablePatch, airtableUploadAttachment } from "../lib/airtable.js";
+import { airtableGet, airtableListField, airtableListFields, airtablePatch, airtableUploadAttachment, airtableReplaceAttachment } from "../lib/airtable.js";
 import { createInvoicePdf } from "../lib/pdf.js";
 import { invoiceFilename, loadInvoiceData } from "../lib/invoice-data.js";
 import { certificateFilename, loadCertificateData } from "../lib/certificate-data.js";
@@ -54,29 +54,19 @@ async function maybeCreateCertificate(base, config, recordId) {
   const fields = purchase?.fields || {};
 
   const requested = fields[f.certificateLaunch] === true;
-  const alreadyDone = f.certificateDone ? fields[f.certificateDone] === true : false;
-
-  if (!requested || alreadyDone) return false;
+  if (!requested) return false;
 
   const data = await loadCertificateData(base, recordId);
   const filename = certificateFilename(data);
-  const existingAttachments = Array.isArray(fields[f.certificateAttachment])
-    ? fields[f.certificateAttachment]
-    : [];
-  const alreadyAttached = existingAttachments.some(
-    (attachment) => attachment?.filename === filename
+  const pdf = await createCertificatePdf(data);
+  await airtableReplaceAttachment(
+    config.baseId,
+    config.tables.purchases,
+    recordId,
+    f.certificateAttachment,
+    pdf,
+    filename
   );
-
-  if (!alreadyAttached) {
-    const pdf = await createCertificatePdf(data);
-    await airtableUploadAttachment(
-      config.baseId,
-      recordId,
-      f.certificateAttachment,
-      pdf,
-      filename
-    );
-  }
 
   const update = {
     [f.certificateLaunch]: false
@@ -86,7 +76,7 @@ async function maybeCreateCertificate(base, config, recordId) {
 
   await airtablePatch(config.baseId, config.tables.purchases, recordId, update);
 
-  return { filename, alreadyAttached };
+  return { filename };
 }
 
 export default async function handler(req, res) {
@@ -116,10 +106,7 @@ export default async function handler(req, res) {
 
     const certificate = await maybeCreateCertificate(base, config, recordId);
     if (certificate) {
-      const message = certificate.alreadyAttached
-        ? `Certificate already attached: ${certificate.filename}`
-        : `Certificate generated and attached: ${certificate.filename}`;
-      res.status(200).send(message);
+      res.status(200).send(`Certificate generated and attached: ${certificate.filename}`);
       return;
     }
 
