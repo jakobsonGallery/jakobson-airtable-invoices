@@ -83,8 +83,8 @@ test("Certificate renders without a network connection", async () => {
 });
 
 test("Invoice filename and document type stay unchanged", () => {
-  assert.match(invoiceFilename(invoice("paris")), /^FACT_.*\\.pdf$/);
-  assert.match(invoiceFilename(invoice("saint-tropez")), /\\.pdf$/);
+  assert.ok(invoiceFilename(invoice("paris")).startsWith("FACT_"));
+  assert.ok(invoiceFilename(invoice("saint-tropez")).endsWith(".pdf"));
 });
 
 test("EXIF orientation is applied before PDF embedding", async () => {
