@@ -87,6 +87,7 @@ export default async function handler(req, res) {
 
     res.status(200).send(`Certificate generated and attached: ${filename}`);
   } catch (error) {
+    console.error("Certificate generation failed:", error);
     if (
       error?.statusCode === 400 &&
       activeConfig?.fields?.certificateLaunch &&
