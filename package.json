@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "vercel": "^37.0.0"
