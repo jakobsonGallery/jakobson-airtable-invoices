@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "check": "node --check api/invoice.js && node --check api/create-invoice.js && node --check api/create-certificate.js && node --check api/monthly-backup.js && node --check lib/certificate-data.js && node --check lib/certificate-pdf.js"
+    "check": "node --check api/invoice.js && node --check api/create-invoice.js && node --check api/create-certificate.js && node --check api/monthly-backup.js && node --check lib/certificate-data.js && node --check lib/certificate-pdf.js && node --check lib/pdf.js && node --check lib/airtable.js && node --check lib/artwork-image.js && node --check test/pdf-regression.test.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",

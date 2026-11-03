@@ -140,6 +140,13 @@ export default async function handler(req, res) {
 
     res.status(200).send(`Invoice generated and attached: ${filename}`);
   } catch (error) {
+    // Keep diagnostics in Vercel logs without logging credentials or client data.
+    console.error("Invoice generation failed", {
+      base: activeConfig?.label || null,
+      recordId: activeRecordId,
+      message: error?.message,
+      stack: error?.stack
+    });
     if (
       error?.statusCode === 400 &&
       activeConfig?.fields?.launch &&
