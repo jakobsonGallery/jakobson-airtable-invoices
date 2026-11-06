@@ -127,7 +127,7 @@ test("Multi-artwork invoice loads image URLs concurrently", async () => {
       "https://example.invalid/d.jpg"
     ]);
     const pdf = await PDFDocument.load(await createInvoicePdf(data));
-    assert.equal(pdf.getPageCount(), 1);
+    assert.ok(pdf.getPageCount() >= 2, "four artworks should flow across pages");
     assert.ok(peak >= 2, "image URLs must download in parallel");
   } finally {
     globalThis.fetch = originalFetch;
