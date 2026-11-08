@@ -43,9 +43,12 @@ function extract(doc){
   if(depth>10||result.length>2500||!x)return;
   if(Array.isArray(x)){for(const v of x)visit(v,context,depth+1);return;}
   if(typeof x!=="object")return;
-  const a=artistOf(x,context),title=clean(titleOf(x),220);
   const nested=arrays.filter(k=>Array.isArray(x[k]));
+  let a=artistOf(x,context);
   const isArtistContainer=nested.length>0 && !("price" in x||"prix" in x||"dimensions" in x);
+  if(isArtistContainer&&!a&&typeof x.name==="string")a=clean(x.name,190);
+  if(isArtistContainer&&!a&&typeof x.nom==="string")a=clean(x.nom,190);
+  const title=clean(titleOf(x),220);
   if(a&&title&&!isArtistContainer){
    const original=clean(x.id||x.uuid||x.slug||x.reference||x.ref||"").slice(0,90);
    const ref=clean(original?("original:"+original):("name:"+a.normalize("NFKD").toLowerCase()+":"+title.normalize("NFKD").toLowerCase()),240);
