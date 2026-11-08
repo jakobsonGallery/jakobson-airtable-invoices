@@ -56,7 +56,7 @@ function mapLead(r){
  const f=fieldsOf(r);
  return {id:r.id,name:f[F.name]||f[F.name2]||"",phone:f[F.phone]||"",email:f[F.email]||"",
   notes:f[F.notes]||"",workIds:f[F.works]||[],status:f[F.status]||"À traiter",
-  selectionUrl:f[F.link]||"",catalogueSummary:f[F.proposed]||"",miamiWorkIds:f[F.miamiWorks]||[],miamiUrl:f[F.miamiLink]||"",lastContact:f[F.last]||"",nextContact:f[F.next]||"",
+  selectionUrl:(typeof f[F.miamiLink]==="string"&&f[F.miamiLink].includes("?miami-oeuvres=")?f[F.miamiLink]:""),catalogueSummary:f[F.proposed]||"",miamiWorkIds:f[F.miamiWorks]||[],miamiUrl:f[F.miamiLink]||"",lastContact:f[F.last]||"",nextContact:f[F.next]||"",
   createdAt:r.createdTime};
 }
 function mapWork(r){const f=fieldsOf(r);const p=(f[W.photo]||[])[0];return {
@@ -107,6 +107,37 @@ async function readPublicMiami(req,res,u){
  const w=fieldsOf(r);return {id:r.id,title:w[MIAMI_FIELDS.title]||"",artist:w[MIAMI_FIELDS.artist]||"",dimensions:w[MIAMI_FIELDS.dims]||"",image:w[MIAMI_FIELDS.image]||"",priceUSD:w[MIAMI_FIELDS.price]??null};
  })});
 }
+
+function sharedArtworkUrl(id,token){
+ const host=(process.env.PUBLIC_BASE_URL||"https://jakobson-airtable-invoices.vercel.app").replace(/\/$/,"");
+ return host+"/art-miami.html?miami-oeuvres="+encodeURIComponent(id)+"."+encodeURIComponent(token);
+}
+async function ensureSharedArtworkLink(record){
+ if(!isMiami(record))throw Object.assign(new Error("Prospect hors Art Miami"),{status:403});
+ const f=fieldsOf(record);
+ const ids=(f[F.works]||[]).filter(isId);
+ if(!ids.length){
+  if(f[F.miamiLink])await request(api+"/"+DEMANDES+"/"+record.id,"PATCH",{[F.miamiLink]:null});
+  return getRecord(record.id);
+ }
+ const old=String(f[F.miamiToken]||"");
+ const token=/^[-_A-Za-z0-9]{35,}$/.test(old)?old:randomBytes(32).toString("base64url");
+ const url=sharedArtworkUrl(record.id,token);
+ if(f[F.miamiToken]!==token||f[F.miamiLink]!==url)
+  await request(api+"/"+DEMANDES+"/"+record.id,"PATCH",{[F.miamiToken]:token,[F.miamiLink]:url});
+ return getRecord(record.id);
+}
+async function readSharedArtworks(req,res,u){
+ const [id,token]=String(u.searchParams.get("miami-oeuvres")||"").split(".");
+ if(!isId(id)||!/^[-_A-Za-z0-9]{35,}$/.test(String(token||"")))return res.status(404).json({error:"Sélection introuvable"});
+ const record=await getRecord(id);const f=fieldsOf(record);
+ if(!isMiami(record)||!equal(f[F.miamiToken],token))return res.status(404).json({error:"Sélection introuvable"});
+ const ids=(f[F.works]||[]).filter(isId).slice(0,50);
+ const works=await Promise.all(ids.map(async workId=>mapWork(await getRecord(workId,OEUVRES))));
+ res.setHeader("Cache-Control","no-store");
+ // Never expose Paris prices on the Art Miami client selection.
+ return res.status(200).json({currency:"USD",pricesHidden:true,works:works.map(({price,...rest})=>rest)});
+}
 async function readPublic(req,res,u){
  const [id,token]=String(u.searchParams.get("selection")||"").split(".");
  if(!isId(id)||!token||!/^[-_A-Za-z0-9]{35,}$/.test(token))return res.status(404).json({error:"Sélection introuvable"});
@@ -121,6 +152,7 @@ export default async function handler(req,res){
  res.setHeader("Cache-Control","no-store");
  try {
   const u=new URL(req.url,"https://local");
+  if(req.method==="GET"&&u.searchParams.has("miami-oeuvres"))return await readSharedArtworks(req,res,u);
   if(req.method==="GET"&&u.searchParams.has("selection"))return await readPublic(req,res,u);
   if(req.method==="GET"&&u.searchParams.has("miami"))return await readPublicMiami(req,res,u);
   if(!auth(req))return res.status(401).json({error:"Accès réservé à l'équipe"});
@@ -188,7 +220,8 @@ export default async function handler(req,res){
     if(x.notes!==undefined)fields[F.notes]=String(x.notes).slice(0,90000);
     await request(api+"/"+DEMANDES+"/"+current.id,"PATCH",fields);
     let stored=await getRecord(current.id);
-    if(!hasMiami)stored=await ensurePrivateLink(stored);
+    if(hasWorks)stored=await ensureSharedArtworkLink(stored);
+    else if(!hasMiami)stored=await ensurePrivateLink(stored);
     if(hasMiami&&miamiIds.length)stored=await ensureMiamiLink(stored);
     return res.status(200).json({lead:mapLead(stored),reused:true});
    }
@@ -196,7 +229,8 @@ export default async function handler(req,res){
    fields[F.date]=new Date().toISOString().slice(0,10);
    const created=await request(api+"/"+DEMANDES,"POST",fields);
    let stored=await getRecord(created.id);
-   if(!hasMiami)stored=await ensurePrivateLink(stored);
+   if(hasWorks)stored=await ensureSharedArtworkLink(stored);
+   else if(!hasMiami)stored=await ensurePrivateLink(stored);
    if(hasMiami&&miamiIds.length)stored=await ensureMiamiLink(stored);
    return res.status(201).json({lead:mapLead(stored),reused:false});
   }
