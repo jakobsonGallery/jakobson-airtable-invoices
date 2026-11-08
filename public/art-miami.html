@@ -65,8 +65,24 @@ function current(){return leads.find(l=>l.id===active);}
 function selectionLink(){const l=current();return l?.selectionUrl||"";}
 function ensureSelection(){syncVisibleSelections();if(!selectedIds.size)throw Error("Sélectionnez au moins une œuvre.");}
 function message(){return $("message").value.trim()+"\n\n"+selectionLink();}
-function waPhone(t){return String(t||"").replace(/\D/g,"");}
-async function prepare(channel){try{ensureSelection();const l=await save();if(!l.selectionUrl)throw Error("Lien privé non disponible.");if(channel==="wa"){if(!l.phone)throw Error("Ajoutez le téléphone.");window.location.href="https://wa.me/"+waPhone(l.phone)+"?text="+encodeURIComponent(message());}else{if(!l.email)throw Error("Ajoutez l'e-mail.");location.href="mailto:"+encodeURIComponent(l.email)+"?subject="+encodeURIComponent("Your private selection — Art Miami | Jakobson Gallery")+"&body="+encodeURIComponent(message());}await call("log","POST",{id:l.id,event:channel==="wa"?"WhatsApp préparé":"E-mail préparé"});flash("Message préparé. Confirmez l'envoi manuellement après l'avoir envoyé.");}catch(e){flash(e.message,true)}}
+function waPhone(t){const raw=String(t||"").trim();const digits=raw.replace(/\D/g,"");if(/^0[67]\d{8}$/.test(digits))return "33"+digits.slice(1);if(/^00\d{8,}$/.test(digits))return digits.slice(2);return digits;}
+async function prepare(channel){
+ try{
+  ensureSelection();
+  const l=await save();
+  if(!l.selectionUrl)throw Error("Le lien privé n'a pas pu être chargé. Réessayez d'enregistrer la sélection.");
+  let destination;
+  if(channel==="wa"){
+   if(!l.phone)throw Error("Ajoutez le téléphone.");
+   destination="https://wa.me/"+waPhone(l.phone)+"?text="+encodeURIComponent(message());
+  }else{
+   if(!l.email)throw Error("Ajoutez l'e-mail.");
+   destination="mailto:"+l.email+"?subject="+encodeURIComponent("Your private selection — Art Miami | Jakobson Gallery")+"&body="+encodeURIComponent(message());
+  }
+  try{await call("log","POST",{id:l.id,event:channel==="wa"?"WhatsApp préparé":"E-mail préparé"});}catch(e){console.warn("Le suivi n'a pas été enregistré",e);}
+  window.location.assign(destination);
+ }catch(e){flash(e.message,true);}
+}
 $("whatsapp").onclick=()=>prepare("wa");$("mail").onclick=()=>prepare("mail");
 $("copy").onclick=async()=>{try{ensureSelection();const l=await save();await navigator.clipboard.writeText(l.selectionUrl);flash("Lien privé copié.");}catch(e){flash(e.message,true)}};
 async function log(event){try{const l=current();if(!l)throw Error("Aucun visiteur sélectionné.");const x=await call("log","POST",{id:l.id,event,nextContact:$("nextContact").value||undefined});const i=leads.findIndex(z=>z.id===l.id);leads[i]=x.lead;$("notes").value=x.lead.notes;drawLeads();flash("✓ Suivi enregistré dans Airtable.");}catch(e){flash(e.message,true)}}
