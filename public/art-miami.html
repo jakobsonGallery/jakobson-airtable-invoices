@@ -13,161 +13,183 @@
 <section id="new">
 <div class="cols">
 <div class="panel"><h2>01 · Visiteur</h2><form id="form"><label>Nom *</label><input id="name" required autocomplete="name" placeholder="Jane Smith"><label>Téléphone</label><input id="phone" type="tel" autocomplete="tel" placeholder="+1 305 555 0123"><label>E-mail</label><input id="email" type="email" autocomplete="email" placeholder="jane@example.com"><label>Notes / échanges</label><textarea id="notes" placeholder="Intérêt pour..."></textarea><label>Statut Airtable</label><select id="status"><option>À traiter</option><option>En cours</option><option>Relance à faire</option><option>Devis envoyé</option><option>Confirmé</option></select><div class="actions"><button type="submit" class="primary" id="save">Enregistrer dans DEMANDES</button><button type="button" id="clear">Nouveau</button></div></form></div>
-<div class="panel"><h2>02 · Catalogue d’origine</h2>
-<p>Le catalogue utilisé est celui de <strong>Jakobson — Sélections privées</strong> : ses artistes, ses œuvres et ses photos. Vous ne choisissez plus dans un inventaire différent.</p>
-<div class="actions"><a class="btn primary" href="https://jakobson-selections.mccomish-patrick.chatgpt.site/" target="_blank" rel="noopener noreferrer">Ouvrir le catalogue officiel ↗</a></div>
-<p class="muted">Créez la sélection sur le site habituel. Si elle a été synchronisée avec Airtable, retrouvez-la ci-dessous. Sinon, copiez son lien privé.</p>
-<div class="actions"><button id="findSelections">Retrouver les sélections du visiteur</button></div>
-<div id="selectionCandidates" class="hide"></div>
-<label for="catalogueLink">Lien privé de Sélections privées</label>
-<input id="catalogueLink" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://jakobson-selections.../c/...">
-<div class="actions"><button id="pasteLink">Coller le lien</button><button id="saveLink" class="primary">Associer à DEMANDES</button></div>
-<div class="notice" id="linkStatus">Aucune sélection du catalogue encore associée.</div>
-<label for="catalogueSummary">Œuvres présentées (facultatif)</label>
-<textarea id="catalogueSummary" placeholder="La liste peut se remplir automatiquement depuis Airtable."></textarea>
-<label for="message">Message en anglais</label><textarea id="message">It was a pleasure meeting you at Art Miami. As promised, here is your private selection of the artworks you enjoyed at our booth. Please feel free to get in touch if you have any questions. Warm regards, Patrick — Jakobson Gallery</textarea>
+<div class="panel"><h2>02 · Catalogue Art Miami</h2>
+<p>Les œuvres et photos du catalogue original, avec des <strong>prix Art Miami indépendants en USD</strong>. Aucun tarif Paris n'est repris.</p>
+<div class="row"><span class="tag">USD · prix Miami</span><span id="selectedCount" class="tag">0 œuvre sélectionnée</span></div>
+<label for="artist">Artiste</label><select id="artist"><option value="">Tous les artistes</option></select>
+<label for="workSearch">Rechercher une œuvre</label><input id="workSearch" type="search" placeholder="Nom de l'œuvre">
+<div id="works" style="max-height:510px;overflow:auto;margin-top:10px"></div>
+<div class="actions"><button id="updateWorks" class="primary">Enregistrer la sélection</button><button type="button" id="editCatalogue">Gérer catalogue & prix</button></div>
+<div id="linkStatus" class="notice">Choisissez les œuvres ci-dessus, puis enregistrez la sélection.</div>
+<label for="message">Message en anglais</label>
+<textarea id="message">It was a pleasure meeting you at Art Miami. As promised, here is your private selection of the artworks you enjoyed at our booth. Please feel free to get in touch if you have any questions. Warm regards, Patrick — Jakobson Gallery</textarea>
 <div class="actions"><button id="whatsapp" class="primary">WhatsApp</button><button id="mail">E-mail</button><button id="copy">Copier le lien</button></div>
-<p class="muted">WhatsApp et Mail préparent le message. Confirmez l'envoi après vérification.</p>
+<p class="muted">Le client reçoit une page Art Miami avec les prix USD renseignés. Aucun prix parisien n'est affiché.</p>
 <div class="actions"><button id="sentWA">✓ WhatsApp envoyé</button><button id="sentMail">✓ E-mail envoyé</button></div>
 <label for="nextContact">Prochaine relance</label><input type="date" id="nextContact"><button id="followup" style="margin-top:10px">Enregistrer la relance</button>
 </div>
+</div>
 </div></section>
 <section id="leads" class="hide"><div class="row"><h2>Visiteurs Art Miami 2026</h2><button id="refresh">Actualiser Airtable</button></div><input id="leadSearch" placeholder="Rechercher nom, téléphone, e-mail"><div class="actions" id="stats"></div><div id="leadList"></div></section>
-<section id="catalog" class="hide"><div class="panel"><h2>Catalogue officiel</h2>
-<p>Le mode Art Miami utilise désormais les liens créés dans <strong>Jakobson — Sélections privées</strong>, et non les fiches « OEUVRES » d’Airtable.</p>
-<div class="actions"><a href="https://jakobson-selections.mccomish-patrick.chatgpt.site/" target="_blank" rel="noopener noreferrer" class="btn primary">Ouvrir Sélections privées ↗</a></div>
-<p class="muted">1. Créer une sélection dans le catalogue habituel. 2. Revenir à Art Miami et cliquer sur « Retrouver les sélections du visiteur ». 3. Si elle n’apparaît pas, coller son lien /c/ dans la fiche. 4. Envoyer via WhatsApp ou e-mail.</p>
-<p>Les visiteurs, leurs coordonnées et leur suivi restent enregistrés dans JAKOBSON PARIS / DEMANDES avec le lieu « ART MIAMI 2026 ».</p></div></section>
+<section id="catalog" class="hide">
+<div class="panel"><h2>Catalogue · Art Miami 2026</h2>
+<p>Cette copie de travail a ses propres tarifs en dollars. Les prix de Sélections privées Paris restent inchangés.</p>
+<div class="notice">Pour reproduire à l'identique les œuvres et photos de Sélections privées, importez une seule fois son export JSON ci-dessous. Les prix Paris présents dans un export ne sont jamais importés. Les nouveaux prix Miami se renseignent directement dans l'onglet « Visiteur ».</div>
+<label for="jsonFile">Importer le catalogue original</label><input id="jsonFile" type="file" accept=".json,application/json">
+<label for="jsonText">Ou coller le JSON</label><textarea id="jsonText" placeholder="Collez éventuellement le contenu du fichier JSON."></textarea>
+<div class="actions"><button id="jsonImport" class="primary">Importer les œuvres (sans prix)</button><button id="backToSelection">Retour à la sélection</button></div>
+<div id="jsonFeedback" class="notice">Aucune donnée Paris ni aucun prix de vente n'est modifié par l'import.</div>
+</div></section>
 </div></main>
 <div id="public" class="public hide"></div>
 <script>
 (function(){
 "use strict";
 const $=id=>document.getElementById(id), esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let password="",leads=[],active=null,saving=false;
-const API="/api/miami";
-const GALLERY="jakobson-selections.mccomish-patrick.chatgpt.site";
+let password="",leads=[],artworks=[],selectedMiamiIds=new Set(),active=null,saving=false;
+const API="/api/miami",CATAPI="/api/miami-catalogue";
 function clearFlash(){$("flash").classList.add("hide");$("flash").textContent="";}
 function flash(msg,bad=false){$("flash").textContent=msg;$("flash").style.borderColor=bad?"#a3534b":"#6b5738";$("flash").classList.remove("hide");}
-function galleryLink(value){try{const u=new URL(String(value||"").trim());return u.protocol==="https:"&&u.hostname===GALLERY&&/^\/c\/[a-zA-Z0-9_-]{12,}$/.test(u.pathname)}catch{return false}}
-async function call(action,method="GET",data,params={}){
- const q=new URLSearchParams({action,...params});
- const r=await fetch(API+"?"+q,{method,headers:{Authorization:"Bearer "+password,...(data?{"Content-Type":"application/json"}:{})},...(data?{body:JSON.stringify(data)}:{})});
- let obj;try{obj=await r.json()}catch{throw Error("Réponse invalide du serveur");}
+async function getJSON(url,options={}){
+ const r=await fetch(url,{...options,headers:{"Authorization":"Bearer "+password,...(options.body?{"Content-Type":"application/json"}:{})}});
+ const obj=await r.json().catch(()=>({}));
  if(!r.ok)throw Error(obj.error||"Erreur serveur "+r.status);
  return obj;
 }
-async function load(){leads=(await call("leads")).leads;drawLeads();}
-function tab(name){document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active-tab",b.dataset.tab===name));for(const n of ["new","leads","catalog"])$(n).classList.toggle("hide",n!==name);if(name==="leads")drawLeads();}
+async function call(action,method="GET",data){
+ return getJSON(API+"?action="+encodeURIComponent(action),{method,...(data?{body:JSON.stringify(data)}:{})});
+}
+async function catcall(action,method="GET",data){
+ return getJSON(CATAPI+"?action="+encodeURIComponent(action),{method,...(data?{body:JSON.stringify(data)}:{})});
+}
+async function load(){
+ const [l,w]=await Promise.all([call("leads"),catcall("list")]);
+ leads=l.leads;artworks=w.works||[];drawLeads();drawArtists();drawWorks();
+}
+function tab(name){
+ document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active-tab",b.dataset.tab===name));
+ for(const n of ["new","leads","catalog"])$(n).classList.toggle("hide",n!==name);
+ if(name==="leads")drawLeads();
+}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>tab(b.dataset.tab));
-$("login").onclick=async()=>{const p=$("password").value.trim();if(!p)return;password=p;try{await load();$("auth").classList.add("hide");$("dashboard").classList.remove("hide");$("authError").classList.add("hide");$("password").value="";}catch(e){password="";$("authError").textContent=e.message;$("authError").classList.remove("hide");}};
+$("login").onclick=async()=>{
+ const p=$("password").value.trim();if(!p)return;password=p;
+ try{await load();$("auth").classList.add("hide");$("dashboard").classList.remove("hide");$("authError").classList.add("hide");$("password").value="";}
+ catch(e){password="";$("authError").textContent=e.message;$("authError").classList.remove("hide");}
+};
 $("password").addEventListener("keydown",e=>{if(e.key==="Enter")$("login").click()});
 $("logout").onclick=()=>location.reload();
-function renderLinkStatus(){
- const url=$("catalogueLink").value.trim();
- const l=leads.find(x=>x.id===active);
- if(galleryLink(url)){
-  $("linkStatus").innerHTML='✓ Sélection du catalogue officiel prête.<div class="actions"><a class="btn" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Voir la sélection ↗</a></div>';
-  $("linkStatus").style.borderColor="#8e7648";
- }else{
-  $("linkStatus").textContent=url?"Ce lien ne correspond pas à une sélection privée /c/ du catalogue Jakobson.":"Aucune sélection du catalogue officiel encore associée.";
-  $("linkStatus").style.borderColor=url?"#a3534b":"#6b5738";
- }
+function drawArtists(){
+ const artist=$("artist").value;
+ const names=[...new Set(artworks.map(w=>w.artist).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+ $("artist").innerHTML='<option value="">Tous les artistes</option>'+names.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");
+ if(names.includes(artist))$("artist").value=artist;
 }
-$("catalogueLink").oninput=()=>{renderLinkStatus();clearFlash();};
+function drawWorks(){
+ const a=$("artist").value,q=$("workSearch").value.trim().toLowerCase();
+ const rows=artworks.filter(w=>w.visible&&(!a||w.artist===a)&&(!q||(w.artist+" "+w.title).toLowerCase().includes(q)));
+ $("selectedCount").textContent=selectedMiamiIds.size+" œuvre(s) sélectionnée(s)";
+ $("works").innerHTML=artworks.length===0
+ ?'<p class="notice">Le catalogue Miami est prêt, mais les œuvres originales ne sont pas encore importées. Ouvrez « Gérer catalogue & prix » pour importer une copie du catalogue existant.</p>'
+ : rows.length?rows.map(w=>'<div class="work" data-row="'+esc(w.id)+'"><input type="checkbox" aria-label="Sélectionner '+esc(w.title)+'" data-select="'+esc(w.id)+'" '+(selectedMiamiIds.has(w.id)?"checked":"")+'>'
+ +(w.image?'<img src="'+esc(w.image)+'" alt="" loading="lazy">':'<div style="width:66px;height:77px;background:#28251f;flex:none"></div>')
+ +'<div style="min-width:0;flex:1"><strong>'+esc(w.title)+'</strong><small>'+esc(w.artist)+' · '+esc(w.dimensions||"")+'</small>'
+ +'<div class="row" style="margin-top:8px;justify-content:flex-start"><input data-price="'+esc(w.id)+'" style="width:122px;min-height:38px;padding:9px" inputmode="decimal" type="number" min="0" step="1" placeholder="Prix USD" value="'+(w.priceUSD??"")+'"><button data-save-price="'+esc(w.id)+'" style="min-height:38px;padding:8px">Prix $</button></div></div></div>').join("")
+ :'<p>Aucune œuvre ne correspond à la recherche.</p>';
+ document.querySelectorAll("#works [data-select]").forEach(cb=>cb.onchange=()=>{
+  if(cb.checked)selectedMiamiIds.add(cb.dataset.select);else selectedMiamiIds.delete(cb.dataset.select);
+  $("selectedCount").textContent=selectedMiamiIds.size+" œuvre(s) sélectionnée(s)";clearFlash();renderLinkStatus();
+ });
+ document.querySelectorAll("#works [data-save-price]").forEach(b=>b.onclick=async()=>{
+  const el=document.querySelector('#works [data-price="'+b.dataset.savePrice+'"]');
+  const raw=el.value.trim(),p=raw===""?null:Number(raw);
+  if(p!==null&&(!Number.isFinite(p)||p<0))return flash("Prix USD invalide.",true);
+  b.disabled=true;
+  try{
+   const r=await catcall("price","POST",{id:b.dataset.savePrice,priceUSD:p});
+   const ix=artworks.findIndex(w=>w.id===r.work.id);if(ix>=0)artworks[ix]=r.work;
+   flash("✓ Prix Art Miami enregistré. Les prix Paris restent inchangés.");
+  }catch(e){flash(e.message,true)}finally{b.disabled=false}
+ });
+}
+$("workSearch").oninput=drawWorks;$("artist").onchange=drawWorks;
 function drawLeads(){
  const q=$("leadSearch").value.trim().toLowerCase();
  const data=leads.filter(l=>(l.name+" "+l.phone+" "+l.email).toLowerCase().includes(q)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
- $("stats").innerHTML='<div class="stat"><b>'+leads.length+'</b>Contacts</div><div class="stat"><b>'+leads.filter(l=>galleryLink(l.selectionUrl)).length+'</b>Sélections liées</div><div class="stat"><b>'+leads.filter(l=>l.status==="Relance à faire").length+'</b>À relancer</div>';
- $("leadList").innerHTML=data.length?data.map(l=>'<div class="lead"><div class="row"><div><strong>'+esc(l.name)+'</strong><p>'+esc(l.phone||l.email||"")+' · '+esc(new Date(l.createdAt).toLocaleDateString("fr-FR"))+'</p></div><span class="tag">'+esc(l.status)+'</span></div><p>'+(galleryLink(l.selectionUrl)?"✓ Sélection officielle associée":"Sélection à associer")+(l.nextContact?" · Relance : "+esc(l.nextContact):"")+'</p><button data-open="'+esc(l.id)+'">Ouvrir / relancer</button></div>').join(""):'<p>Aucun prospect Art Miami.</p>';
+ $("stats").innerHTML='<div class="stat"><b>'+leads.length+'</b>Contacts</div><div class="stat"><b>'+leads.filter(l=>l.miamiWorkIds?.length).length+'</b>Sélections</div><div class="stat"><b>'+leads.filter(l=>l.status==="Relance à faire").length+'</b>À relancer</div>';
+ $("leadList").innerHTML=data.length?data.map(l=>'<div class="lead"><div class="row"><div><strong>'+esc(l.name)+'</strong><p>'+esc(l.phone||l.email||"")+' · '+esc(new Date(l.createdAt).toLocaleDateString("fr-FR"))+'</p></div><span class="tag">'+esc(l.status)+'</span></div><p>'+((l.miamiWorkIds||[]).length)+' œuvre(s) Miami'+(l.nextContact?" · Relance : "+esc(l.nextContact):"")+'</p><button data-open="'+esc(l.id)+'">Ouvrir / relancer</button></div>').join(""):'<p>Aucun prospect Art Miami.</p>';
  document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openLead(b.dataset.open));
 }
 $("leadSearch").oninput=drawLeads;
 function openLead(id){
- const l=leads.find(x=>x.id===id);if(!l)return;
- active=id;$("name").value=l.name;$("phone").value=l.phone;$("email").value=l.email;
+ const l=leads.find(x=>x.id===id);if(!l)return;active=id;
+ $("name").value=l.name;$("phone").value=l.phone;$("email").value=l.email;
  $("notes").value=l.notes;$("status").value=l.status;$("nextContact").value=l.nextContact||"";
- $("catalogueLink").value=galleryLink(l.selectionUrl)?l.selectionUrl:"";
- $("catalogueSummary").value=l.catalogueSummary||"";
- $("selectionCandidates").classList.add("hide");$("selectionCandidates").innerHTML="";
- renderLinkStatus();clearFlash();tab("new");window.scrollTo(0,0);
+ selectedMiamiIds=new Set(l.miamiWorkIds||[]);drawWorks();renderLinkStatus();clearFlash();tab("new");window.scrollTo(0,0);
 }
 $("clear").onclick=()=>{
- active=null;$("form").reset();$("catalogueLink").value="";$("catalogueSummary").value="";
- $("nextContact").value="";$("selectionCandidates").classList.add("hide");$("selectionCandidates").innerHTML="";
- renderLinkStatus();clearFlash();
+ active=null;selectedMiamiIds.clear();$("form").reset();$("nextContact").value="";
+ drawWorks();renderLinkStatus();clearFlash();
 };
+function renderLinkStatus(){
+ const l=leads.find(z=>z.id===active);const url=l?.miamiUrl||"";
+ $("linkStatus").textContent=selectedMiamiIds.size?selectedMiamiIds.size+" œuvre(s) sélectionnée(s). "+(url?"Lien Miami disponible après enregistrement.":"Enregistrez la sélection pour créer son lien."):"Choisissez les œuvres du catalogue Miami.";
+}
 function recordFromForm(){
- const data={id:active||undefined,name:$("name").value.trim(),phone:$("phone").value.trim(),
- email:$("email").value.trim(),notes:$("notes").value,status:$("status").value};
- const link=$("catalogueLink").value.trim();
- if(link){if(!galleryLink(link))throw Error("Collez un vrai lien privé /c/ de Sélections privées.");data.catalogueLink=link;data.catalogueSummary=$("catalogueSummary").value;}
+ const data={id:active||undefined,name:$("name").value.trim(),phone:$("phone").value.trim(),email:$("email").value.trim(),
+ notes:$("notes").value,status:$("status").value,miamiWorkIds:[...selectedMiamiIds]};
  if(!data.name||(!data.phone&&!data.email))throw Error("Indiquez un nom et un téléphone ou e-mail.");
  return data;
 }
 async function save(){
  if(saving)throw Error("Enregistrement déjà en cours.");
- saving=true;$("save").disabled=true;$("saveLink").disabled=true;
+ saving=true;$("save").disabled=true;$("updateWorks").disabled=true;
  try{
-  const result=await call("upsert","POST",recordFromForm());
-  active=result.lead.id;
+  const r=await call("upsert","POST",recordFromForm());
+  active=r.lead.id;
   const index=leads.findIndex(l=>l.id===active);
-  if(index<0)leads.unshift(result.lead);else leads[index]=result.lead;
-  if(galleryLink(result.lead.selectionUrl))$("catalogueLink").value=result.lead.selectionUrl;
-  $("catalogueSummary").value=result.lead.catalogueSummary||"";
-  renderLinkStatus();drawLeads();
-  return result.lead;
- }finally{saving=false;$("save").disabled=false;$("saveLink").disabled=false;}
+  if(index<0)leads.unshift(r.lead);else leads[index]=r.lead;
+  selectedMiamiIds=new Set(r.lead.miamiWorkIds||[]);
+  drawLeads();renderLinkStatus();return r.lead;
+ }finally{saving=false;$("save").disabled=false;$("updateWorks").disabled=false}
 }
 $("form").onsubmit=async e=>{e.preventDefault();try{const l=await save();flash("✓ "+l.name+" enregistré dans DEMANDES.");}catch(e){flash(e.message,true)}};
-$("saveLink").onclick=async()=>{try{const l=await save();if(galleryLink(l.selectionUrl))flash("✓ Sélection officielle associée à "+l.name+" dans Airtable.");else flash("✓ Visiteur enregistré. Il reste à associer sa sélection.");}catch(e){flash(e.message,true)}};
-$("pasteLink").onclick=async()=>{try{
- if(!navigator.clipboard?.readText)throw Error("Sur iPhone, maintenez le doigt dans le champ et choisissez « Coller ».");
- const value=await navigator.clipboard.readText();
- if(!galleryLink(value))throw Error("Le presse-papiers ne contient pas de lien privé /c/ de Sélections privées.");
- $("catalogueLink").value=value.trim();renderLinkStatus();flash("Lien privé récupéré. Appuyez sur « Associer à DEMANDES ».");
- }catch(e){flash(e.message,true)}};
-$("findSelections").onclick=async()=>{
- const name=$("name").value.trim(),phone=$("phone").value.trim(),email=$("email").value.trim();
- if(!name&&!phone&&!email){flash("Entrez le nom ou les coordonnées du visiteur pour retrouver sa sélection.",true);return;}
- $("findSelections").disabled=true;$("selectionCandidates").classList.remove("hide");
- $("selectionCandidates").innerHTML='<p>Recherche dans DEMANDES…</p>';
+$("updateWorks").onclick=async()=>{try{if(!selectedMiamiIds.size)throw Error("Choisissez une œuvre.");const l=await save();flash("✓ "+l.miamiWorkIds.length+" œuvre(s) associée(s) dans Airtable. Prix Miami séparés.");}catch(e){flash(e.message,true)}};
+$("editCatalogue").onclick=()=>tab("catalog");$("backToSelection").onclick=()=>tab("new");
+$("jsonImport").onclick=async()=>{
+ let doc;
  try{
-  const r=await call("catalogSelections","GET",null,{name,email,phone});
-  if(!r.selections?.length){$("selectionCandidates").innerHTML='<p>Aucune sélection synchronisée trouvée. Vous pouvez coller directement le lien /c/ depuis Sélections privées.</p>';return;}
-  $("selectionCandidates").innerHTML=r.selections.map((s,i)=>'<div class="lead"><div class="row"><div><strong>'+esc(s.name||"Sélection")+'</strong><p>'+esc(new Date(s.date).toLocaleDateString("fr-FR"))+' · '+esc((s.summary||"").split("\n").filter(Boolean).length)+' œuvre(s)</p></div><button data-choice="'+i+'" class="primary">Utiliser</button></div><p class="muted">'+esc((s.summary||"").slice(0,240))+'</p></div>').join("");
-  document.querySelectorAll("[data-choice]").forEach(btn=>btn.onclick=async()=>{
-   const s=r.selections[Number(btn.dataset.choice)];
-   $("catalogueLink").value=s.url;$("catalogueSummary").value=s.summary||"";
-   renderLinkStatus();try{const l=await save();flash("✓ Sélection du catalogue officiel associée à "+l.name+".");$("selectionCandidates").classList.add("hide");}catch(e){flash(e.message,true)}
-  });
- }catch(e){$("selectionCandidates").innerHTML="";flash(e.message,true)}finally{$("findSelections").disabled=false}
+  const f=$("jsonFile").files?.[0];const pasted=$("jsonText").value.trim();
+  const text=pasted||(f?await f.text():"");
+  if(!text)throw Error("Choisissez un fichier JSON ou collez son contenu.");
+  doc=JSON.parse(text);
+  $("jsonImport").disabled=true;$("jsonFeedback").textContent="Import en cours…";
+  const result=await catcall("import","POST",{catalogue:doc});
+  artworks=result.works||[];drawArtists();drawWorks();
+  $("jsonFeedback").textContent="✓ "+result.added+" œuvre(s) ajoutée(s) ; "+result.unchanged+" déjà présentes. Aucun prix Paris copié.";
+  flash("Catalogue Miami mis à jour.");
+ }catch(e){$("jsonFeedback").textContent="Erreur : "+e.message;}finally{$("jsonImport").disabled=false}
 };
 function waPhone(t){let s=String(t||"").replace(/\D/g,"");if(s.startsWith("00"))s=s.slice(2);if(/^0[67]\d{8}$/.test(s))s="33"+s.slice(1);return s;}
 async function prepare(channel){
  try{
-  if(!galleryLink($("catalogueLink").value))throw Error("Associez d’abord une sélection du catalogue officiel.");
-  const l=await save();if(!galleryLink(l.selectionUrl))throw Error("Lien de sélection officielle indisponible dans Airtable.");
+  if(!selectedMiamiIds.size)throw Error("Choisissez au moins une œuvre.");
+  const l=await save();if(!l.miamiUrl)throw Error("Le lien privé Miami n'a pas été généré.");
+  const msg=$("message").value.trim()+"\n\n"+l.miamiUrl;
   let destination;
-  const msg=$("message").value.trim()+"\n\n"+l.selectionUrl;
   if(channel==="wa"){
    if(!l.phone)throw Error("Ajoutez le téléphone.");
    destination="https://wa.me/"+waPhone(l.phone)+"?text="+encodeURIComponent(msg);
   }else{
    if(!l.email)throw Error("Ajoutez l'e-mail.");
-   destination="mailto:"+l.email+"?subject="+encodeURIComponent("Your private selection — Art Miami | Jakobson Gallery")+"&body="+encodeURIComponent(msg);
+   destination="mailto:"+l.email+"?subject="+encodeURIComponent("Your Art Miami private selection — Jakobson Gallery")+"&body="+encodeURIComponent(msg);
   }
   try{await call("log","POST",{id:l.id,event:channel==="wa"?"WhatsApp préparé":"E-mail préparé"});}catch(e){console.warn("Historique non enregistré",e)}
   window.location.assign(destination);
  }catch(e){flash(e.message,true)}
 }
 $("whatsapp").onclick=()=>prepare("wa");$("mail").onclick=()=>prepare("mail");
-$("copy").onclick=async()=>{
- try{
-  if(!galleryLink($("catalogueLink").value))throw Error("Aucun lien privé du catalogue officiel à copier.");
-  const l=await save();await navigator.clipboard.writeText(l.selectionUrl);flash("Lien privé officiel copié.");
- }catch(e){flash(e.message,true)}
-};
+$("copy").onclick=async()=>{try{if(!selectedMiamiIds.size)throw Error("Choisissez au moins une œuvre.");const l=await save();if(!l.miamiUrl)throw Error("Lien absent");await navigator.clipboard.writeText(l.miamiUrl);flash("✓ Lien privé Miami copié.");}catch(e){flash(e.message,true)}};
 async function log(event){
  try{
   const l=leads.find(x=>x.id===active);if(!l)throw Error("Enregistrez d'abord le visiteur.");
@@ -180,12 +202,19 @@ $("sentWA").onclick=()=>log("WhatsApp envoyé (confirmé)");
 $("sentMail").onclick=()=>log("E-mail envoyé (confirmé)");
 $("followup").onclick=()=>log("Note");
 $("refresh").onclick=async()=>{try{await load();flash("Données Airtable actualisées.");}catch(e){flash(e.message,true)}};
-
 async function showPublic(){
-$("app").classList.add("hide");$("public").classList.remove("hide");
-$("public").innerHTML='<div class="gold">JAKOBSON GALLERY · ART MIAMI 2026</div><h1>Your Private Selection</h1><p>Thank you for visiting us at Art Miami. Here are the artworks you enjoyed.</p><div id="publicItems">Loading your selection...</div>';
-try{const s=new URLSearchParams(location.search).get("selection");const r=await fetch(API+"?selection="+encodeURIComponent(s));const x=await r.json();if(!r.ok)throw Error("This link is invalid or unavailable.");$("publicItems").innerHTML=(x.works||[]).map(w=>'<article class="publicItem">'+(w.image?'<img src="'+esc(w.image)+'" alt="">':"")+'<div><h2>'+esc(w.title)+'</h2><div class="gold">'+esc(w.artist)+'</div><p>'+esc(w.dimensions||"")+'</p>'+(w.price!==null?'<p>'+Number(w.price).toLocaleString("en-US")+' EUR</p>':"")+'</div></article>').join("")+'<p>For further information, please contact <a href="mailto:paris@jakobsongallery.com" class="gold">paris@jakobsongallery.com</a>.</p>';}catch(e){$("publicItems").textContent=e.message;}
+ $("app").classList.add("hide");$("public").classList.remove("hide");
+ $("public").innerHTML='<div class="gold">JAKOBSON GALLERY · ART MIAMI 2026</div><h1>Your Private Selection</h1><p>Thank you for visiting us at Art Miami. Here are the artworks you enjoyed.</p><div id="publicItems">Loading your selection...</div>';
+ try{
+  const params=new URLSearchParams(location.search);
+  const isMiami=params.has("miami");
+  const s=params.get(isMiami?"miami":"selection");
+  const r=await fetch(API+"?"+(isMiami?"miami":"selection")+"="+encodeURIComponent(s));
+  const x=await r.json();if(!r.ok)throw Error("This private link is invalid or unavailable.");
+  const rows=x.works||[];
+  $("publicItems").innerHTML=rows.map(w=>'<article class="publicItem">'+(w.image?'<img src="'+esc(w.image)+'" alt="">':"")+'<div><h2>'+esc(w.title)+'</h2><div class="gold">'+esc(w.artist)+'</div><p>'+esc(w.dimensions||"")+'</p>'+(isMiami?(w.priceUSD!==null&&w.priceUSD!==undefined?'<p><strong>$'+Number(w.priceUSD).toLocaleString("en-US")+' USD</strong></p>':""):(w.price!==null?'<p>'+Number(w.price).toLocaleString("en-US")+' EUR</p>':""))+'</div></article>').join("")+'<p>For further information, please contact <a href="mailto:paris@jakobsongallery.com" class="gold">paris@jakobsongallery.com</a>.</p>';
+ }catch(e){$("publicItems").textContent=e.message}
 }
-if(new URLSearchParams(location.search).has("selection"))showPublic();
+if(new URLSearchParams(location.search).has("selection")||new URLSearchParams(location.search).has("miami"))showPublic();
 })();
 </script></body></html>
