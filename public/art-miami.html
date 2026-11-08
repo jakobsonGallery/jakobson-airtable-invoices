@@ -25,6 +25,7 @@
 const $=id=>document.getElementById(id), esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let password="", leads=[],works=[],active=null,selectedIds=new Set(),saving=false;
 const API="/api/miami";
+function clearFlash(){$("flash").classList.add("hide");$("flash").textContent="";}
 function flash(msg,bad=false){$("flash").textContent=msg;$("flash").style.borderColor=bad?"#a3534b":"#6b5738";$("flash").classList.remove("hide");}
 async function call(action,method="GET",data){
 const u=API+"?action="+encodeURIComponent(action);
@@ -40,11 +41,12 @@ $("login").onclick=async()=>{const p=$("password").value.trim();if(!p)return;pas
 $("password").addEventListener("keydown",e=>{if(e.key==="Enter")$("login").click()});
 $("logout").onclick=()=>location.reload();
 function drawArtists(){const vals=[...new Set(works.map(w=>w.artist).filter(Boolean))].sort((a,b)=>a.localeCompare(b));$("artist").innerHTML='<option value="">Tous les artistes</option>'+vals.map(x=>'<option>'+esc(x)+'</option>').join("");}
+function syncVisibleSelections(){document.querySelectorAll("#works input[data-id]").forEach(cb=>{if(cb.checked)selectedIds.add(cb.dataset.id);else selectedIds.delete(cb.dataset.id);});}
 function drawWorks(){
 const q=$("workSearch").value.toLowerCase(),a=$("artist").value;
 const filtered=works.filter(w=>(!a||w.artist===a)&&(!q||(w.title+" "+w.artist).toLowerCase().includes(q)));
 $("works").innerHTML=filtered.length?filtered.map(w=>'<label class="work"><input type="checkbox" data-id="'+esc(w.id)+'" '+(selectedIds.has(w.id)?"checked":"")+'><div>'+(w.image?'<img src="'+esc(w.image)+'" loading="lazy" alt="">':"")+'</div><div><strong>'+esc(w.title)+'</strong><small>'+esc(w.artist)+' · '+esc(w.dimensions||"")+'</small></div></label>').join(""):'<p>Aucune œuvre trouvée.</p>';
-document.querySelectorAll("[data-id]").forEach(cb=>cb.onchange=()=>{if(cb.checked)selectedIds.add(cb.dataset.id);else selectedIds.delete(cb.dataset.id);$("leadHint").textContent=selectedIds.size+" œuvre(s) sélectionnée(s)";});
+document.querySelectorAll("#works input[data-id]").forEach(cb=>cb.onchange=()=>{if(cb.checked)selectedIds.add(cb.dataset.id);else selectedIds.delete(cb.dataset.id);$("leadHint").textContent=selectedIds.size+" œuvre(s) sélectionnée(s)";clearFlash();});
 }
 $("artist").onchange=drawWorks;$("workSearch").oninput=drawWorks;
 function drawLeads(){
@@ -56,15 +58,15 @@ document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openLead(b.dat
 $("leadSearch").oninput=drawLeads;
 function openLead(id){const l=leads.find(x=>x.id===id);if(!l)return;active=id;selectedIds=new Set(l.workIds||[]);$("name").value=l.name;$("phone").value=l.phone;$("email").value=l.email;$("notes").value=l.notes;$("status").value=l.status;$("nextContact").value=l.nextContact||"";$("leadHint").textContent="Sélection pour "+l.name;drawWorks();tab("new");window.scrollTo(0,0);}
 $("clear").onclick=()=>{active=null;selectedIds.clear();$("form").reset();$("leadHint").textContent="Nouveau visiteur. Enregistrez son nom et ses coordonnées.";drawWorks();};
-async function save(){const data={id:active||undefined,name:$("name").value.trim(),phone:$("phone").value.trim(),email:$("email").value.trim(),notes:$("notes").value,status:$("status").value,workIds:[...selectedIds]};if(!data.name||(!data.phone&&!data.email))throw Error("Indiquez un nom et un téléphone ou e-mail.");const r=await call("upsert","POST",data);active=r.lead.id;selectedIds=new Set(r.lead.workIds);const ix=leads.findIndex(l=>l.id===active);if(ix>=0)leads[ix]=r.lead;else leads.unshift(r.lead);drawLeads();$("leadHint").textContent=r.reused?"Fiche Airtable existante mise à jour.":"Prospect enregistré dans Airtable.";return r.lead;}
+async function save(){syncVisibleSelections();const data={id:active||undefined,name:$("name").value.trim(),phone:$("phone").value.trim(),email:$("email").value.trim(),notes:$("notes").value,status:$("status").value,workIds:[...selectedIds]};if(!data.name||(!data.phone&&!data.email))throw Error("Indiquez un nom et un téléphone ou e-mail.");const r=await call("upsert","POST",data);active=r.lead.id;selectedIds=new Set(r.lead.workIds);const ix=leads.findIndex(l=>l.id===active);if(ix>=0)leads[ix]=r.lead;else leads.unshift(r.lead);drawLeads();$("leadHint").textContent=r.reused?"Fiche Airtable existante mise à jour.":"Prospect enregistré dans Airtable.";return r.lead;}
 $("form").onsubmit=async e=>{e.preventDefault();if(saving)return;saving=true;$("save").disabled=true;try{const l=await save();flash("✓ "+l.name+" enregistré dans JAKOBSON PARIS / DEMANDES.");}catch(err){flash(err.message,true)}finally{saving=false;$("save").disabled=false}};
-$("updateWorks").onclick=async()=>{if(!active)return flash("Enregistrez d'abord le visiteur.",true);try{await save();flash("✓ Sélection mise à jour dans Airtable.");}catch(e){flash(e.message,true)}};
+$("updateWorks").onclick=async()=>{try{if(!active&& !($("name").value.trim()))throw Error("Indiquez le nom du visiteur.");const l=await save();flash("✓ "+l.workIds.length+" œuvre(s) enregistrée(s) dans Airtable.");}catch(e){flash(e.message,true)}};
 function current(){return leads.find(l=>l.id===active);}
 function selectionLink(){const l=current();return l?.selectionUrl||"";}
-function ensureSelection(){if(!current())throw Error("Enregistrez le visiteur.");if(!selectedIds.size)throw Error("Sélectionnez au moins une œuvre.");}
+function ensureSelection(){syncVisibleSelections();if(!selectedIds.size)throw Error("Sélectionnez au moins une œuvre.");}
 function message(){return $("message").value.trim()+"\n\n"+selectionLink();}
 function waPhone(t){return String(t||"").replace(/\D/g,"");}
-async function prepare(channel){try{ensureSelection();const l=await save();if(!l.selectionUrl)throw Error("Lien privé non disponible.");if(channel==="wa"){if(!l.phone)throw Error("Ajoutez le téléphone.");window.open("https://wa.me/"+waPhone(l.phone)+"?text="+encodeURIComponent(message()),"_blank","noopener");}else{if(!l.email)throw Error("Ajoutez l'e-mail.");location.href="mailto:"+encodeURIComponent(l.email)+"?subject="+encodeURIComponent("Your private selection — Art Miami | Jakobson Gallery")+"&body="+encodeURIComponent(message());}await call("log","POST",{id:l.id,event:channel==="wa"?"WhatsApp préparé":"E-mail préparé"});flash("Message préparé. Confirmez l'envoi manuellement après l'avoir envoyé.");}catch(e){flash(e.message,true)}}
+async function prepare(channel){try{ensureSelection();const l=await save();if(!l.selectionUrl)throw Error("Lien privé non disponible.");if(channel==="wa"){if(!l.phone)throw Error("Ajoutez le téléphone.");window.location.href="https://wa.me/"+waPhone(l.phone)+"?text="+encodeURIComponent(message());}else{if(!l.email)throw Error("Ajoutez l'e-mail.");location.href="mailto:"+encodeURIComponent(l.email)+"?subject="+encodeURIComponent("Your private selection — Art Miami | Jakobson Gallery")+"&body="+encodeURIComponent(message());}await call("log","POST",{id:l.id,event:channel==="wa"?"WhatsApp préparé":"E-mail préparé"});flash("Message préparé. Confirmez l'envoi manuellement après l'avoir envoyé.");}catch(e){flash(e.message,true)}}
 $("whatsapp").onclick=()=>prepare("wa");$("mail").onclick=()=>prepare("mail");
 $("copy").onclick=async()=>{try{ensureSelection();const l=await save();await navigator.clipboard.writeText(l.selectionUrl);flash("Lien privé copié.");}catch(e){flash(e.message,true)}};
 async function log(event){try{const l=current();if(!l)throw Error("Aucun visiteur sélectionné.");const x=await call("log","POST",{id:l.id,event,nextContact:$("nextContact").value||undefined});const i=leads.findIndex(z=>z.id===l.id);leads[i]=x.lead;$("notes").value=x.lead.notes;drawLeads();flash("✓ Suivi enregistré dans Airtable.");}catch(e){flash(e.message,true)}}
