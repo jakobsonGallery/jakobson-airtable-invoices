@@ -187,14 +187,16 @@ export default async function handler(req,res){
    if(current){
     if(x.notes!==undefined)fields[F.notes]=String(x.notes).slice(0,90000);
     await request(api+"/"+DEMANDES+"/"+current.id,"PATCH",fields);
-    let stored=await ensurePrivateLink(await getRecord(current.id));
+    let stored=await getRecord(current.id);
+    if(!hasMiami)stored=await ensurePrivateLink(stored);
     if(hasMiami&&miamiIds.length)stored=await ensureMiamiLink(stored);
     return res.status(200).json({lead:mapLead(stored),reused:true});
    }
    fields[F.notes]=String(x.notes||"").slice(0,90000);
    fields[F.date]=new Date().toISOString().slice(0,10);
    const created=await request(api+"/"+DEMANDES,"POST",fields);
-   let stored=await ensurePrivateLink(await getRecord(created.id));
+   let stored=await getRecord(created.id);
+   if(!hasMiami)stored=await ensurePrivateLink(stored);
    if(hasMiami&&miamiIds.length)stored=await ensureMiamiLink(stored);
    return res.status(201).json({lead:mapLead(stored),reused:false});
   }
