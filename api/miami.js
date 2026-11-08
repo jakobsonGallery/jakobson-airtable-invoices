@@ -15,6 +15,15 @@ const W={title:"fldEB4ApP5ajbkg4L",artist:"fldHhZUoLG8Ht5fkZ",photo:"fldmZixVmqp
   dims:"fldZQrcXm9Ds4b36U",price:"fldUXO9urG4jtloM9",dispo:"fldbMqcgEy7ruQqGp"};
 const FIELDIDS = Object.values(F);
 const WORKIDS=Object.values(W);
+const GALLERY_HOST="jakobson-selections.mccomish-patrick.chatgpt.site";
+function galleryLink(v){
+ try{
+  const u=new URL(String(v||"").trim());
+  return u.protocol==="https:"&&u.hostname===GALLERY_HOST&&/^\/c\/[a-zA-Z0-9_-]{12,}$/.test(u.pathname);
+ }catch{return false;}
+}
+function canonicalPhone(v){let s=String(v||"").replace(/\D/g,"");if(s.startsWith("00"))s=s.slice(2);if(/^0[1-9]\d{8}$/.test(s))s="33"+s.slice(1);return s;}
+function canonicalName(v){return String(v||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();}
 const api="https://api.airtable.com/v0/"+BASE;
 const isId=id=>/^rec[A-Za-z0-9]{14}$/.test(String(id||""));
 function equal(a,b){const x=Buffer.from(String(a||""));const y=Buffer.from(String(b||""));return x.length===y.length && timingSafeEqual(x,y);}
@@ -45,7 +54,7 @@ function mapLead(r){
  const f=fieldsOf(r);
  return {id:r.id,name:f[F.name]||f[F.name2]||"",phone:f[F.phone]||"",email:f[F.email]||"",
   notes:f[F.notes]||"",workIds:f[F.works]||[],status:f[F.status]||"À traiter",
-  selectionUrl:f[F.link]||"",lastContact:f[F.last]||"",nextContact:f[F.next]||"",
+  selectionUrl:f[F.link]||"",catalogueSummary:f[F.proposed]||"",lastContact:f[F.last]||"",nextContact:f[F.next]||"",
   createdAt:r.createdTime};
 }
 function mapWork(r){const f=fieldsOf(r);const p=(f[W.photo]||[])[0];return {
@@ -67,6 +76,7 @@ async function ensurePrivateLink(record){
  const old=typeof f[F.ref]==="string"?f[F.ref]:"";
  const key=/^[-_A-Za-z0-9]{35,}$/.test(old)?old:randomBytes(32).toString("base64url");
  const url=selectionUrl(null,record.id,key);
+ if(galleryLink(f[F.link])||(!f[F.works]?.length && !f[F.link]))return record;
  if(f[F.ref]!==key||f[F.link]!==url){
   const fields={[F.ref]:key,[F.link]:url,[F.catalogueState]:"Actif"};
   await request(api+"/"+DEMANDES+"/"+record.id,"PATCH",fields);
@@ -98,21 +108,44 @@ export default async function handler(req,res){
    const r=await all(DEMANDES,FIELDIDS,"{LIEU}='ART MIAMI 2026'");
    return res.status(200).json({leads:r.filter(isMiami).map(mapLead)});
   }
+  if(req.method==="GET"&&action==="catalogSelections"){
+   const email=String(u.searchParams.get("email")||"").trim().toLowerCase();
+   const phone=canonicalPhone(u.searchParams.get("phone"));
+   const name=canonicalName(u.searchParams.get("name"));
+   if(!email&&!phone&&!name)return res.status(400).json({error:"Indiquez un contact pour retrouver une sélection"});
+   const recs=await all(DEMANDES,[F.name,F.name2,F.email,F.phone,F.link,F.proposed,F.lieu,F.date]);
+   const found=recs.filter(r=>{
+    const f=fieldsOf(r);
+    if(!galleryLink(f[F.link]))return false;
+    const e=String(f[F.email]||"").trim().toLowerCase();
+    const p=canonicalPhone(f[F.phone]);
+    const n=canonicalName(f[F.name]||f[F.name2]);
+    return Boolean((email&&e&&email===e)||(phone&&p&&phone===p)||(name&&n&&name===n));
+   }).sort((a,b)=>String(b.createdTime||"").localeCompare(String(a.createdTime||""))).slice(0,12);
+   return res.status(200).json({selections:found.map(r=>{const f=fieldsOf(r);return {id:r.id,name:f[F.name]||f[F.name2]||"",url:f[F.link],summary:f[F.proposed]||"",date:r.createdTime};})});
+  }
   if(req.method==="POST"&&action==="upsert"){
    const x=req.body||{};
    const name=String(x.name||"").trim().slice(0,200),phone=String(x.phone||"").trim().slice(0,70),
      email=String(x.email||"").trim().toLowerCase().slice(0,250);
    if(!name||(!phone&&!email))return res.status(400).json({error:"Nom et téléphone ou e-mail nécessaires"});
    if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:"E-mail incorrect"});
-   const incoming=Array.isArray(x.workIds)?[...new Set(x.workIds.filter(isId))].slice(0,50):[];
+   const hasWorks=Array.isArray(x.workIds);
+   const incoming=hasWorks?[...new Set(x.workIds.filter(isId))].slice(0,50):[];
+   const catalogueLink=String(x.catalogueLink||"").trim();
+   if(catalogueLink&&!galleryLink(catalogueLink))return res.status(400).json({error:"Utilisez un lien privé /c/ provenant de Jakobson — Sélections privées"});
    const works=incoming.length?await Promise.all(incoming.map(id=>getRecord(id,OEUVRES))):[];
    const summary=works.map(r=>{const f=fieldsOf(r);return (f[W.artist]||"")+" — "+(f[W.title]||"");}).join("\n");
    const validStatus=["À traiter","En cours","Relance à faire","Devis envoyé","Confirmé"];
    const fields={
     [F.name]:name,[F.lieu]:"ART MIAMI 2026",[F.origin]:"ART MIAMI 2026",
-    [F.phone]:phone||null,[F.email]:email||null,[F.works]:incoming,[F.proposed]:summary,
+    [F.phone]:phone||null,[F.email]:email||null,
     [F.status]:validStatus.includes(x.status)?x.status:"À traiter"
    };
+   if(hasWorks){fields[F.works]=incoming;fields[F.proposed]=summary;}
+   if(catalogueLink){fields[F.link]=catalogueLink;fields[F.catalogueState]="Actif";
+    if(typeof x.catalogueSummary==="string")fields[F.proposed]=x.catalogueSummary.slice(0,90000);
+   }
    let current=null;
    if(x.id){current=await getRecord(x.id);if(!isMiami(current))return res.status(403).json({error:"Prospect hors Art Miami"});}
    else {
