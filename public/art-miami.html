@@ -62,7 +62,7 @@ async function save(){syncVisibleSelections();const data={id:active||undefined,n
 $("form").onsubmit=async e=>{e.preventDefault();if(saving)return;saving=true;$("save").disabled=true;try{const l=await save();flash("✓ "+l.name+" enregistré dans JAKOBSON PARIS / DEMANDES.");}catch(err){flash(err.message,true)}finally{saving=false;$("save").disabled=false}};
 $("updateWorks").onclick=async()=>{try{if(!active&& !($("name").value.trim()))throw Error("Indiquez le nom du visiteur.");const l=await save();flash("✓ "+l.workIds.length+" œuvre(s) enregistrée(s) dans Airtable.");}catch(e){flash(e.message,true)}};
 function current(){return leads.find(l=>l.id===active);}
-function selectionLink(){const l=current();return l?.selectionUrl||"";}
+function selectionLink(){const l=current();return l?.selectionUrl?.includes("?miami-oeuvres=")?l.selectionUrl:"";}
 function ensureSelection(){syncVisibleSelections();if(!selectedIds.size)throw Error("Sélectionnez au moins une œuvre.");}
 function message(){return $("message").value.trim()+"\n\n"+selectionLink();}
 function waPhone(t){const raw=String(t||"").trim();const digits=raw.replace(/\D/g,"");if(/^0[67]\d{8}$/.test(digits))return "33"+digits.slice(1);if(/^00\d{8,}$/.test(digits))return digits.slice(2);return digits;}
@@ -70,7 +70,7 @@ async function prepare(channel){
  try{
   ensureSelection();
   const l=await save();
-  if(!l.selectionUrl)throw Error("Le lien privé n'a pas pu être chargé. Réessayez d'enregistrer la sélection.");
+  if(!l.selectionUrl?.includes("?miami-oeuvres="))throw Error("Le lien privé Art Miami n'a pas pu être chargé. Réessayez d'enregistrer la sélection.");
   let destination;
   if(channel==="wa"){
    if(!l.phone)throw Error("Ajoutez le téléphone.");
@@ -84,7 +84,7 @@ async function prepare(channel){
  }catch(e){flash(e.message,true);}
 }
 $("whatsapp").onclick=()=>prepare("wa");$("mail").onclick=()=>prepare("mail");
-$("copy").onclick=async()=>{try{ensureSelection();const l=await save();await navigator.clipboard.writeText(l.selectionUrl);flash("Lien privé copié.");}catch(e){flash(e.message,true)}};
+$("copy").onclick=async()=>{try{ensureSelection();const l=await save();if(!selectionLink())throw Error("Lien Art Miami indisponible.");await navigator.clipboard.writeText(selectionLink());flash("Lien privé Art Miami copié.");}catch(e){flash(e.message,true)}};
 async function log(event){try{const l=current();if(!l)throw Error("Aucun visiteur sélectionné.");const x=await call("log","POST",{id:l.id,event,nextContact:$("nextContact").value||undefined});const i=leads.findIndex(z=>z.id===l.id);leads[i]=x.lead;$("notes").value=x.lead.notes;drawLeads();flash("✓ Suivi enregistré dans Airtable.");}catch(e){flash(e.message,true)}}
 $("sentWA").onclick=()=>log("WhatsApp envoyé (confirmé)");$("sentMail").onclick=()=>log("E-mail envoyé (confirmé)");$("followup").onclick=()=>log("Note");
 $("refresh").onclick=async()=>{try{await load();flash("Données Airtable actualisées.");}catch(e){flash(e.message,true)}};
@@ -92,8 +92,8 @@ $("refreshWorks").onclick=$("refresh").onclick;
 async function showPublic(){
 $("app").classList.add("hide");$("public").classList.remove("hide");
 $("public").innerHTML='<div class="gold">JAKOBSON GALLERY · ART MIAMI 2026</div><h1>Your Private Selection</h1><p>Thank you for visiting us at Art Miami. Here are the artworks you enjoyed.</p><div id="publicItems">Loading your selection...</div>';
-try{const s=new URLSearchParams(location.search).get("selection");const r=await fetch(API+"?selection="+encodeURIComponent(s));const x=await r.json();if(!r.ok)throw Error("This link is invalid or unavailable.");$("publicItems").innerHTML=(x.works||[]).map(w=>'<article class="publicItem">'+(w.image?'<img src="'+esc(w.image)+'" alt="">':"")+'<div><h2>'+esc(w.title)+'</h2><div class="gold">'+esc(w.artist)+'</div><p>'+esc(w.dimensions||"")+'</p>'+(w.price!==null?'<p>'+Number(w.price).toLocaleString("en-US")+' EUR</p>':"")+'</div></article>').join("")+'<p>For further information, please contact <a href="mailto:paris@jakobsongallery.com" class="gold">paris@jakobsongallery.com</a>.</p>';}catch(e){$("publicItems").textContent=e.message;}
+try{const p=new URLSearchParams(location.search);const kind=p.has("miami-oeuvres")?"miami-oeuvres":"selection";const s=p.get(kind);const r=await fetch(API+"?"+kind+"="+encodeURIComponent(s));const x=await r.json();if(!r.ok)throw Error("This link is invalid or unavailable.");$("publicItems").innerHTML=(x.works||[]).map(w=>'<article class="publicItem">'+(w.image?'<img src="'+esc(w.image)+'" alt="">':"")+'<div><h2>'+esc(w.title)+'</h2><div class="gold">'+esc(w.artist)+'</div><p>'+esc(w.dimensions||"")+'</p>'+(x.pricesHidden?'<p>Price upon request</p>':(w.price!==null?'<p>'+Number(w.price).toLocaleString("en-US")+' EUR</p>':""))+'</div></article>').join("")+'<p>For further information, please contact <a href="mailto:paris@jakobsongallery.com" class="gold">paris@jakobsongallery.com</a>.</p>';}catch(e){$("publicItems").textContent=e.message;}
 }
-if(new URLSearchParams(location.search).has("selection"))showPublic();
+if(new URLSearchParams(location.search).has("selection")||new URLSearchParams(location.search).has("miami-oeuvres"))showPublic();
 })();
 </script></body></html>
