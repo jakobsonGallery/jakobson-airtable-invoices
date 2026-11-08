@@ -55,6 +55,24 @@ function mapWork(r){const f=fieldsOf(r);const p=(f[W.photo]||[])[0];return {
 async function getRecord(id,table=DEMANDES){if(!isId(id))throw Object.assign(new Error("Invalid record"),{status:400});return request(api+"/"+table+"/"+id+"?returnFieldsByFieldId=true");}
 function noteAppend(old,newNote){const line=String(newNote||"").trim().slice(0,2000);if(!line)return old||"";if(!old)return line;return (old+"\n"+line).slice(-90000);}
 function selectionUrl(req,id,token){const host=(process.env.PUBLIC_BASE_URL||"https://jakobson-airtable-invoices.vercel.app").replace(/\/$/,"");return host+"/art-miami.html?selection="+encodeURIComponent(id)+"."+encodeURIComponent(token);}
+/**
+ * Airtable's POST/PATCH responses use field NAMES unless requested otherwise.
+ * Always re-fetch the stored record with returnFieldsByFieldId=true before
+ * mapping it to the frontend or constructing an external selection link.
+ * Also backfill links on Art Miami records created before this fix.
+ */
+async function ensurePrivateLink(record){
+ if(!isMiami(record))throw Object.assign(new Error("Prospect hors Art Miami"),{status:403});
+ const f=fieldsOf(record);
+ const old=typeof f[F.ref]==="string"?f[F.ref]:"";
+ const key=/^[-_A-Za-z0-9]{35,}$/.test(old)?old:randomBytes(32).toString("base64url");
+ const url=selectionUrl(null,record.id,key);
+ if(f[F.ref]!==key||f[F.link]!==url){
+  const fields={[F.ref]:key,[F.link]:url,[F.catalogueState]:"Actif"};
+  await request(api+"/"+DEMANDES+"/"+record.id,"PATCH",fields);
+ }
+ return await getRecord(record.id);
+}
 async function readPublic(req,res,u){
  const [id,token]=String(u.searchParams.get("selection")||"").split(".");
  if(!isId(id)||!token||!/^[-_A-Za-z0-9]{35,}$/.test(token))return res.status(404).json({error:"Sélection introuvable"});
@@ -103,17 +121,15 @@ export default async function handler(req,res){
    }
    if(current){
     if(x.notes!==undefined)fields[F.notes]=String(x.notes).slice(0,90000);
-    const r=await request(api+"/"+DEMANDES+"/"+current.id,"PATCH",fields);
-    return res.status(200).json({lead:mapLead(r),reused:true});
+    await request(api+"/"+DEMANDES+"/"+current.id,"PATCH",fields);
+    const stored=await ensurePrivateLink(await getRecord(current.id));
+    return res.status(200).json({lead:mapLead(stored),reused:true});
    }
-   const key=randomBytes(32).toString("base64url");
    fields[F.notes]=String(x.notes||"").slice(0,90000);
-   fields[F.ref]=key;
    fields[F.date]=new Date().toISOString().slice(0,10);
-   const record=await request(api+"/"+DEMANDES,"POST",fields);
-   const url=selectionUrl(req,record.id,key);
-   const r=await request(api+"/"+DEMANDES+"/"+record.id,"PATCH",{[F.link]:url,[F.catalogueState]:"Actif"});
-   return res.status(201).json({lead:mapLead(r),reused:false});
+   const created=await request(api+"/"+DEMANDES,"POST",fields);
+   const stored=await ensurePrivateLink(await getRecord(created.id));
+   return res.status(201).json({lead:mapLead(stored),reused:false});
   }
   if(req.method==="POST"&&action==="log"){
    const x=req.body||{};const r=await getRecord(x.id);
@@ -125,8 +141,9 @@ export default async function handler(req,res){
    const fields={[F.notes]:noteAppend(fieldsOf(r)[F.notes],note)};
    if(event.includes("confirmé")||event==="Relance effectuée")fields[F.last]=time.slice(0,10);
    if(x.nextContact&&/^\d{4}-\d{2}-\d{2}$/.test(x.nextContact))fields[F.next]=x.nextContact;
-   const updated=await request(api+"/"+DEMANDES+"/"+x.id,"PATCH",fields);
-   return res.status(200).json({lead:mapLead(updated)});
+   await request(api+"/"+DEMANDES+"/"+x.id,"PATCH",fields);
+   const stored=await getRecord(x.id);
+   return res.status(200).json({lead:mapLead(stored)});
   }
   return res.status(405).json({error:"Méthode non autorisée"});
  }catch(e){console.error("Art Miami",e.message);return res.status(e.status||500).json({error:e.status===502?"Erreur de connexion Airtable":e.status===400?e.message:"Erreur du serveur"});}
